@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Minimal working example</title>
+    <style>
+        #container {
+            width: 96%;
+            max-width: 960px;
+            display: flex;
+            margin: 0 auto;
+        }
+        #room-list-wrapper {
+            flex: 1 25%;
+        }
+        #messages-box-wrapper {
+            flex: 1 75%;
+            border: 1px #cacaca solid;
+            padding: 48px 4px;
+            height: 400px;
+            position: relative;
+
+        }
+        #messages-box {
+            /* position: relative; */
+            overflow-y: scroll;
+            height: 400px;
+
+        }
+        #room-name {
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+        #message-form {
+            padding-top: 4px;
+        }
+        #message-input {
+            width: 90%;
+            margin: 0 auto;
+        }
+        .message { 
+            padding: 4px;
+            margin: 4px;
+            border: 1px #bfbfbf solid;
+        }
+        .message-yours {
+            background: rgba(32, 196, 32, .3);
+        }
+        .message-foreign {
+            background: rgba(32, 32, 196, .3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container">
+        <div id="room-list-wrapper">
+            <h2>Dane</h2>
+            <form id="add-room-form">
+                <input type="text" placeholder="nazwa pokoju" />
+            </form>
+            <input id="nick" type="text" value="" />
+            <h2>Lista Pokoi</h2>
+            <ul id="room-list"></ul>
+        </div>
+        <div id="messages-box-wrapper">
+            <div id="messages-box">
+                <h3 id="room-name"></h3>
+                <div id="messages-list"></div>
+            </div>
+            <form id="message-form">
+                <input id="message-input" type="text" placeholder="treść wiadomości" />
+            </form>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const messageList = document.getElementById('messages-list');
+
+
+        document.getElementById('room-list').addEventListener('click', e=>{
+            const newRoom = e.target.innerHTML;
+            const ctr = document.getElementById('room-name');
+            if(newRoom !== ctr.innerHTML){
+                socket.emit('changeRoom', newRoom);
+                messageList.innerHTML = "";
+                ctr.innerHTML = newRoom;
+
+            }
+
+        });
+        document.getElementById('add-room-form').addEventListener('submit', e=>{
+            socket.emit('createRoom', e.srcElement[0].value);
+            e.preventDefault();
+        })
+        document.getElementById('nick').addEventListener('change', e=>socket.emit('changeNick', e.target.value));
+        document.getElementById('message-form').addEventListener('submit', e=>{
+            e.preventDefault();
+            socket.emit('message', e.srcElement[0].value);
+            e.srcElement[0].value="";
+        })
+
+        document.body.addEventListener('contextmenu', e=>{
+            myWorker.postMessage('copy');
+            e.preventDefault()
+        });
+
+        socket.on('message', msg=>{
+            const mb = document.getElementById('messages-box');
+            const needScrolling = mb.scrollTop+400 === mb.scrollHeight;
+            messageList.innerHTML+=`
+                <div 
+                    class="message ${msg.sender===document.getElementById('nick').value?'message-yours':'message-foreign'}"
+                    title="${new Date(msg.date).toLocaleString()}"
+                >
+                    <div class="message-sender">
+                        ${msg.sender}
+                    </div>
+                    <div class="message-content">
+                        ${msg.content}        
+                    </div>
+                </div>
+            `;
+            if(needScrolling){ mb.scroll({ top: 9999, left: 0, behavior: 'smooth' }); }
+        });
+        socket.on('nick', nick=>document.getElementById('nick').value=nick)
+        socket.on('rooms', arr=>{
+            const ctr = document.getElementById('room-name');
+            if(!ctr.innerHTML) ctr.innerHTML = arr[0];
+            document.getElementById('room-list').innerHTML = arr.map(name=>`<li>${name}</li>`).join("");
+        })
+
+        if (window.Worker) {
+
+            var myWorker = new Worker('worker.js');
+
+            myWorker.onmessage = function(oEvent) {
+                const o = JSON.parse(oEvent.data);
+                switch(o.command){
+                    case "copy":
+                        return document.getElementById('message-input').value=`Jestem na czacie od ${o.payload.val}s, mój sprzęt wykonał ${o.payload.result} obrotów pętli zdarzeń js w workerze.`;
+
+                }
+            };
+
+        }
+
+
+
+    </script>
+</body>
+</html>
